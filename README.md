@@ -3,7 +3,7 @@
 ## 1. install docker
 
 ```bash
-apt-get update && apt-get install docker.io zsh -y
+apt-get update && apt-get install docker.io zsh jq -y
 ```
 
 ## 2. create user and group
