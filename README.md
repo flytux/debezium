@@ -1,7 +1,7 @@
 # Debezium mysql connector example
 
 - MySQL의 BinLog를 이용하여 DB의 변경사항을 Capture하여 Kafka Topic에 전달하는 예제
-- Kafka Connect / Debezium MySQL connector와 watch-topic을 이용하여 
+- Kafka Connect / Debezium MySQL connector와 watch-topic을 이용하여 변경사항 확인
 
 ## 1. install docker
 
