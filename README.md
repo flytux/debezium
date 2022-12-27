@@ -3,7 +3,7 @@
 ## 1. install docker
 
 ```bash
-apt-get update && apt-get install docker.io
+apt-get update && apt-get install docker.io zsh -y
 ```
 
 ## 2. create user and group
@@ -12,6 +12,38 @@ apt-get update && apt-get install docker.io
 groupadd -g 2000 k8sadm
 useradd -m -u 2000 -g 2000 -s /bin/bash k8sadm
 echo ' k8sadm ALL=(ALL)   ALL' >> /etc/sudoers
+echo -e "1\n1" | passwd k8sadm >/dev/null 2>&1
+usermod -aG docker k8sadm
+
+wget https://github.com/rancher/rke/releases/download/v1.3.15/rke_linux-amd64
+chmod 755 rke_linux-amd64 && sudo mv rke_linux-amd64 /usr/local/bin/rke
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+chmod 755 kubectl && sudo mv kubectl /usr/local/bin
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+
+git clone https://github.com/zsh-users/zsh-autosuggestions ~/.zsh/zsh-autosuggestions
+git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ~/.zsh/zsh-syntax-highlighting
+git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ~/.zsh/powerlevel10k
+
+echo 'source ~/.zsh/powerlevel10k/powerlevel10k.zsh-theme' >>~/.zshrc
+echo 'source ~/.zsh/zsh-autosuggestions/zsh-autosuggestions.zsh' >>~/.zshrc
+echo 'source ~/.zsh/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh' >>~/.zshrc
+
+$ cat <<EOF >> ~/.zshrc
+
+# k8s alias
+
+source <(kubectl completion zsh)
+
+alias k=kubectl
+alias vi=vim
+alias kn='kubectl config set-context --current --namespace'
+alias kc='kubectl config use-context'
+alias kcg='kubectl config get-contexts'
+alias di='docker images --format "table {{.Repository}}:{{.Tag}}\t{{.ID}}\t{{.Size}}\t{{.CreatedSince}}"'
+EOF
 ```
 
 
