@@ -190,6 +190,7 @@ curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" 
 
 ### 7. Update Database
 
+```bash
 kubectl exec -it $(kubectl get pods -l app=mysql -o name) -- mysql -uroot -p
 password: debezium
 
@@ -201,3 +202,4 @@ INSERT INTO customers VALUES (default, "Sarah", "Thompson", "kitt@acme.com");
 INSERT INTO customers VALUES (default, "Kenneth", "Anderson", "kander@acme.com");
 
 Check Kafdrop : http://kafdrop.kw01/topic/dbserver1.inventory.customers/messages
+```
