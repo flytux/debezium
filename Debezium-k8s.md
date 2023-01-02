@@ -8,8 +8,12 @@ echo ' k8sadm ALL=(ALL)   ALL' >> /etc/sudoers
 
 apt update && apt install docker.io -y
 usermod -aG docker k8sadm
+newgrp docker
 
 curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.21.10+k3s1 sh -s - --docker --write-kubeconfig-mode 644
+
+mkdir -p ~/.kube
+cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
 
 curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
 chmod 755 kubectl && sudo mv kubectl /usr/local/bin
@@ -30,110 +34,51 @@ EOF
 source ~/.bashrc
 ```
 
-### 2. Install stimzi operator
+### 2. Install Kafka Helm chart
 
 ```bash
-k create ns debizium
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm install kafka bitnami/kafka -n kafka --create-namespace
 
-curl -sL https://github.com/operator-framework/operator-lifecycle-manager/releases/download/v0.20.0/install.sh | bash -s v0.20.0
 
-kubectl create -f https://operatorhub.io/install/strimzi-kafka-operator.yaml
+
+kubectl run -it kakfa-kafka-client --restart='Never' --image docker.io/bitnami/kafka:3.3.1-debian-11-r25 --namespace kafka -- bash
+kafka-console-producer.sh --broker-list kakfa-kafka-0.kakfa-kafka-headless.kafka.svc.cluster.local:9092 --topic test
+kafka-console-consumer.sh --bootstrap-server kakfa-kafka.kafka.svc.cluster.local:9092 --topic test --from-beginning
+
 ```
 
-### 3. Install kafka
+### 3. Install Kafdrop
 
 ```bash
-cat << EOF | kubectl create -n debezium -f -
-apiVersion: v1
-kind: Secret
-metadata:
-  name: debezium-secret
-  namespace: debezium
-type: Opaque
-data:
-  username: ZGViZXppdW0=
-  password: ZGJ6
-EOF
+helm repo add rhcharts https://ricardo-aires.github.io/helm-charts/
+helm upgrade --install aires --set kafka.enabled=false --set kafka.bootstrapServers=kafka-kafka.kafka.svc.cluster.local:9092 rhcharts/kafdrop
 
-cat << EOF | kubectl create -n debezium -f -
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+cat << EOF | kubectl create -n kafka -f -
+apiVersion: networking.k8s.io/v1
+kind: Ingress
 metadata:
-  name: connector-configuration-role
-  namespace: debezium
-rules:
-- apiGroups: [""]
-  resources: ["secrets"]
-  resourceNames: ["debezium-secret"]
-  verbs: ["get"]
-EOF
-
-cat << EOF | kubectl create -n debezium -f -
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: connector-configuration-role-binding
-  namespace: debezium
-subjects:
-- kind: ServiceAccount
-  name: debezium-connect-cluster-connect
-  namespace: debezium
-roleRef:
-  kind: Role
-  name: connector-configuration-role
-  apiGroup: rbac.authorization.k8s.io
-EOF
-
-
-cat << EOF | kubectl create -n debezium -f -
-apiVersion: kafka.strimzi.io/v1beta2
-kind: Kafka
-metadata:
-  name: debezium-cluster
+  name: kafdrop
+  namespace: kafka
 spec:
-  kafka:
-    replicas: 1
-    listeners:
-      - name: plain
-        port: 9092
-        type: internal
-        tls: false
-      - name: tls
-        port: 9093
-        type: internal
-        tls: true
-        authentication:
-          type: tls
-      - name: external
-        port: 9094
-        type: nodeport
-        tls: false
-    storage:
-      type: jbod
-      volumes:
-      - id: 0
-        type: persistent-claim
-        size: 1Gi
-        deleteClaim: false
-    config:
-      offsets.topic.replication.factor: 1
-      transaction.state.log.replication.factor: 1
-      transaction.state.log.min.isr: 1
-      default.replication.factor: 1
-      min.insync.replicas: 1
-  zookeeper:
-    replicas: 1
-    storage:
-      type: persistent-claim
-      size: 1Gi
-      deleteClaim: false
-  entityOperator:
-    topicOperator: {}
-    userOperator: {}
+  rules:
+    - host: kafdrop.kw01
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: aires-kafdrop
+                port:
+                  number: 9000
 EOF
+```
 
+### 4. Install Mysql Example
 
-cat << EOF | kubectl create -n debezium -f -
+```bash
+cat << EOF | kubectl create -n kafka -f -
 apiVersion: v1
 kind: Service
 metadata:
@@ -175,53 +120,84 @@ spec:
           name: mysql
 EOF
 
+kubectl exec -it $(kubectl get pods -l app=mysql -o name) -- mysql -uroot -p
+password: debezium
 
-cat << EOF | kubectl create -n debezium -f -
-apiVersion: kafka.strimzi.io/v1beta2
-kind: KafkaConnect
+use invetntory
+show tables;
+select * from customers;
+
+```
+
+### 5. Install Kafka Connect
+
+```bash
+cat << EOF | kubectl create -n kafka -f -
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: debezium-connect-cluster
-  annotations:
-    strimzi.io/use-connector-resources: "true"
+  name: debezium-connect
+  namespace: kafka
 spec:
-  version: 3.1.0
-  image: quay.io/lordofthejars/debezium-connector-mysql:1.9.4
-  replicas: 1
-  bootstrapServers: debezium-cluster-kafka-bootstrap:9092
-  config:
-    config.providers: secrets
-    config.providers.secrets.class: io.strimzi.kafka.KubernetesSecretConfigProvider
-    group.id: connect-cluster
-    offset.storage.topic: connect-cluster-offsets
-    config.storage.topic: connect-cluster-configs
-    status.storage.topic: connect-cluster-status
-    # -1 means it will use the default replication factor configured in the broker
-    config.storage.replication.factor: -1
-    offset.storage.replication.factor: -1
-    status.storage.replication.factor: -1
-EOF
-
-cat << EOF | kubectl create -n debezium -f -
-apiVersion: kafka.strimzi.io/v1beta2
-kind: KafkaConnector
+  selector:
+    matchLabels:
+      app: debezium-connect
+  template:
+    metadata:
+      labels:
+        app: debezium-connect
+    spec:
+      containers:
+      - env:
+        - name: GROUP_ID
+          value: "1"
+        - name: CONFIG_STORAGE_TOPIC
+          value: my_connect_configs
+        - name: OFFSET_STORAGE_TOPIC
+          value: my_connect_offsets
+        - name: STATUS_STORAGE_TOPIC
+          value: my_connect_statuses
+        image: quay.io/debezium/connect:2.1
+        imagePullPolicy: IfNotPresent
+        name: debezium-connect
+        ports:
+        - containerPort: 8083
+          name: tcp
+          protocol: TCP
+---
+apiVersion: v1
+kind: Service
 metadata:
-  name: debezium-connector-mysql
-  labels:
-    strimzi.io/cluster: debezium-connect-cluster
+  name: debezium-connect
 spec:
-  class: io.debezium.connector.mysql.MySqlConnector
-  tasksMax: 1
-  config:
-    tasks.max: 1
-    database.hostname: mysql
-    database.port: 3306
-    database.user: ${secrets:debezium-example/debezium-secret:username}
-    database.password: ${secrets:debezium-example/debezium-secret:password}
-    database.server.id: 184054
-    topic.prefix: mysql
-    database.include.list: inventory
-    schema.history.internal.kafka.bootstrap.servers: debezium-cluster-kafka-bootstrap:9092
-    schema.history.internal.kafka.topic: schema-changes.inventory
+  ports:
+  - port: 8083
+    targerPort: 8083
+    nodePort: 30883
+  selector:
+    app: debezium-connect
+  type: NodePort
 EOF
+```
 
-kubectl run -n debezium -it --rm --image=quay.io/debezium/tooling:1.2  --restart=Never watcher -- kcat -b debezium-cluster-kafka-bootstrap:9092 -C -o beginning -t mysql.inventory.customers
+### 6. Install Debezium MySQL Connector
+
+```bash
+curl -X DELETE http://localhost:30883/connectors/inventory-connector
+
+curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" localhost:30883/connectors/ -d '{ "name": "inventory-connector", "config": { "connector.class": "io.debezium.connector.mysql.MySqlConnector", "tasks.max": "1", "database.hostname": "mysql", "database.port": "3306", "database.user": "debezium", "database.password": "dbz", "database.server.id": "184054", "topic.prefix": "dbserver1", "database.include.list": "inventory", "schema.history.internal.kafka.bootstrap.servers": "kakfa-kafka:9092", "schema.history.internal.kafka.topic": "schema-changes.inventory" } }'
+```
+
+### 7. Update Database
+
+kubectl exec -it $(kubectl get pods -l app=mysql -o name) -- mysql -uroot -p
+password: debezium
+
+UPDATE customers SET first_name='Anne Marie' WHERE id=1004;
+DELETE FROM addresses WHERE customer_id=1004;
+DELETE FROM customers WHERE id=1004;
+
+INSERT INTO customers VALUES (default, "Sarah", "Thompson", "kitt@acme.com");
+INSERT INTO customers VALUES (default, "Kenneth", "Anderson", "kander@acme.com");
+
+Check Kafdrop : http://kafdrop.kw01/topic/dbserver1.inventory.customers/messages
