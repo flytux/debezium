@@ -132,7 +132,7 @@ select * from customers;
 
 ### 4. Build Debezium Connector
 ```bash
-docker build -t debezium-jdbc:2.1 . -f Dockerfile.connect
+docker build -t debezium-jdbc:2.1 . -f Dockerfile.connector
 ```
 
 
@@ -164,7 +164,7 @@ spec:
           value: my_connect_offsets
         - name: STATUS_STORAGE_TOPIC
           value: my_connect_statuses
-        image: quay.io/debezium/connect:2.1
+        image: debezium-jdbc:2.1
         imagePullPolicy: IfNotPresent
         name: debezium-connect
         ports:
@@ -211,8 +211,52 @@ INSERT INTO customers VALUES (default, "Kenneth", "Anderson", "kander@acme.com")
 Check Kafdrop : http://kafdrop.kw01/topic/dbserver1.inventory.customers/messages
 ```
 
-### 8. JDBC sync to PostgreSQL - Work In Progress
-Build debezium connect with jdbc connenctor
-https://github.com/debezium/debezium-examples/tree/main/unwrap-smt
-https://github.com/debezium/debezium-examples/blob/main/unwrap-smt/debezium-jdbc-es/Dockerfile
+### 8. Install PostgreSQL
+
+```bash
+cat << EOF | kubectl create -n kafka -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  ports:
+  - port: 5432
+  selector:
+    app: postgres
+  clusterIP: None
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  selector:
+    matchLabels:
+      app: postgres
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - image: quay.io/debezium/postgres:9.6
+        name: postgres
+        env:
+        - name: POSTGRES_USER
+          value: postgresuser
+        - name: POSTGRES_PASSWORD
+          value: postgrespw
+        - name: POSTGRES_DB
+          value: inventory
+        ports:
+        - containerPort: 5432
+          name: postgres
+EOF
+```
+
+### 9. Install PostgreSQL Sync-Connector
+
 
