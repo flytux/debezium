@@ -52,7 +52,7 @@ kafka-console-consumer.sh --bootstrap-server kafka-headless.kafka.svc.cluster.lo
 
 ```bash
 helm repo add rhcharts https://ricardo-aires.github.io/helm-charts/
-helm upgrade --install aires --set kafka.enabled=false --set kafka.bootstrapServers=kafka-kafka.kafka.svc.cluster.local:9092 rhcharts/kafdrop
+helm upgrade --install kafdrop --set kafka.enabled=false --set kafka.bootstrapServers=kafka-headless.kafka.svc.cluster.local:9092 rhcharts/kafdrop
 
 cat << EOF | kubectl create -n kafka -f -
 apiVersion: networking.k8s.io/v1
