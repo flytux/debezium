@@ -172,7 +172,7 @@ metadata:
 spec:
   ports:
   - port: 8083
-    targerPort: 8083
+    targetPort: 8083
     nodePort: 30883
   selector:
     app: debezium-connect
