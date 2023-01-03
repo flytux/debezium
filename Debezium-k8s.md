@@ -69,7 +69,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: aires-kafdrop
+                name: kafdrop
                 port:
                   number: 9000
 EOF
