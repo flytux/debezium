@@ -203,3 +203,9 @@ INSERT INTO customers VALUES (default, "Kenneth", "Anderson", "kander@acme.com")
 
 Check Kafdrop : http://kafdrop.kw01/topic/dbserver1.inventory.customers/messages
 ```
+
+### 8. JDBC sync to PostgreSQL - Work In Progress
+Build debezium connect with jdbc connenctor
+https://github.com/debezium/debezium-examples/tree/main/unwrap-smt
+https://github.com/debezium/debezium-examples/blob/main/unwrap-smt/debezium-jdbc-es/Dockerfile
+
