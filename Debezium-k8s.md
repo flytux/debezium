@@ -129,6 +129,13 @@ select * from customers;
 
 ```
 
+
+### 4. Build Debezium Connector
+```bash
+docker build -t debezium-jdbc:2.1 . -f Dockerfile.connect
+```
+
+
 ### 5. Install Kafka Connect
 
 ```bash
