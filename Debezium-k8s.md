@@ -43,8 +43,8 @@ helm install kafka bitnami/kafka -n kafka --create-namespace
 
 
 kubectl run -it kakfa-kafka-client --restart='Never' --image docker.io/bitnami/kafka:3.3.1-debian-11-r25 --namespace kafka -- bash
-kafka-console-producer.sh --broker-list kakfa-kafka-0.kakfa-kafka-headless.kafka.svc.cluster.local:9092 --topic test
-kafka-console-consumer.sh --bootstrap-server kakfa-kafka.kafka.svc.cluster.local:9092 --topic test --from-beginning
+kafka-console-producer.sh --broker-list kafka-kafka-0.kakfa-kafka-headless.kafka.svc.cluster.local:9092 --topic test
+kafka-console-consumer.sh --bootstrap-server kafka-kafka.kafka.svc.cluster.local:9092 --topic test --from-beginning
 
 ```
 
