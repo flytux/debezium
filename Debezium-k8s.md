@@ -259,4 +259,6 @@ EOF
 
 ### 9. Install PostgreSQL Sync-Connector
 
-
+```bash
+curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://localhost:30883/connectors/ -d @sink.json
+```
