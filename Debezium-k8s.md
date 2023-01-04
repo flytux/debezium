@@ -130,13 +130,13 @@ select * from customers;
 ```
 
 
-### 4. Build Debezium Connector
+### 5. Build Debezium Connector
 ```bash
 docker build -t debezium-jdbc:2.1 . -f Dockerfile.connector
 ```
 
 
-### 5. Install Kafka Connect
+### 6. Install Kafka Connect
 
 ```bash
 cat << EOF | kubectl create -n kafka -f -
@@ -187,31 +187,7 @@ spec:
 EOF
 ```
 
-### 6. Install Debezium MySQL Connector
-
-```bash
-curl -X DELETE http://localhost:30883/connectors/inventory-connector
-
-curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" localhost:30883/connectors/ -d '{ "name": "inventory-connector", "config": { "connector.class": "io.debezium.connector.mysql.MySqlConnector", "tasks.max": "1", "database.hostname": "mysql", "database.port": "3306", "database.user": "debezium", "database.password": "dbz", "database.server.id": "184054", "topic.prefix": "dbserver1", "database.include.list": "inventory", "schema.history.internal.kafka.bootstrap.servers": "kafka-headless.kafka.svc.cluster.local:9092", "schema.history.internal.kafka.topic": "schema-changes.inventory", "transforms": "route", "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter", "transforms.route.regex": "([^.]+)\\.([^.]+)\\.([^.]+)", "transforms.route.replacement": "$3" } }'
-```
-
-### 7. Update Database
-
-```bash
-kubectl exec -it $(kubectl get pods -l app=mysql -o name) -- mysql -uroot -p
-password: debezium
-
-UPDATE customers SET first_name='Anne Marie' WHERE id=1004;
-DELETE FROM addresses WHERE customer_id=1004;
-DELETE FROM customers WHERE id=1004;
-
-INSERT INTO customers VALUES (default, "Sarah", "Thompson", "kitt@acme.com");
-INSERT INTO customers VALUES (default, "Kenneth", "Anderson", "kander@acme.com");
-
-Check Kafdrop : http://kafdrop.kw01/topic/dbserver1.inventory.customers/messages
-```
-
-### 8. Install PostgreSQL
+### 7. Install PostgreSQL
 
 ```bash
 cat << EOF | kubectl create -n kafka -f -
@@ -257,10 +233,41 @@ spec:
 EOF
 ```
 
-### 9. Install PostgreSQL Sync-Connector
+### 8. Install PostgreSQL Sync-Connector
 
 ```bash
 curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://localhost:30883/connectors/ -d @sink.json
 
+psql -U $POSTGRES_USER $POSTGRES_DB -c "select * from customers"
+```
+
+### 9. Install Debezium MySQL Source Connector
+
+```bash
+curl -X DELETE http://localhost:30883/connectors/inventory-connector
+
+curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" localhost:30883/connectors/ -d '{ "name": "inventory-connector", "config": { "connector.class": "io.debezium.connector.mysql.MySqlConnector", "tasks.max": "1", "database.hostname": "mysql", "database.port": "3306", "database.user": "debezium", "database.password": "dbz", "database.server.id": "184054", "topic.prefix": "dbserver1", "database.include.list": "inventory", "schema.history.internal.kafka.bootstrap.servers": "kafka-headless.kafka.svc.cluster.local:9092", "schema.history.internal.kafka.topic": "schema-changes.inventory", "transforms": "route", "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter", "transforms.route.regex": "([^.]+)\\.([^.]+)\\.([^.]+)", "transforms.route.replacement": "$3" } }'
+```
+
+### 10. Update Database
+
+```bash
+kubectl exec -it $(kubectl get pods -l app=mysql -o name) -- mysql -uroot -p
+password: debezium
+
+UPDATE customers SET first_name='Anne Marie' WHERE id=1004;
+DELETE FROM addresses WHERE customer_id=1004;
+DELETE FROM customers WHERE id=1004;
+
+INSERT INTO customers VALUES (default, "Sarah", "Thompson", "kitt@acme.com");
+INSERT INTO customers VALUES (default, "Kenneth", "Anderson", "kander@acme.com");
+
+Check Kafdrop : http://kafdrop.kw01/topic/dbserver1.inventory.customers/messages
+```
+
+### 11. Check Postgres
+
+```bash
+k exec -it $(kubectl get pods -l app=postgres -o name) -- bash
 psql -U $POSTGRES_USER $POSTGRES_DB -c "select * from customers"
 ```
